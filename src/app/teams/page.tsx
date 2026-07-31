@@ -2,9 +2,9 @@
 
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { useEffect, useState } from "react";
-import { collection, getDocs, addDoc, doc, deleteDoc } from "firebase/firestore";
+import { collection, getDocs, addDoc, doc, deleteDoc, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebaseStore";
-import { UsersRound, Loader2, Plus, Trash2, X } from "lucide-react";
+import { UsersRound, Loader2, Plus, Trash2, X, Mail } from "lucide-react";
 
 interface Team {
   id: string;
@@ -26,23 +26,54 @@ export default function TeamsPage() {
   const [sector, setSector] = useState("");
   const [ideaList, setIdeaList] = useState("");
 
-  const fetchTeams = async () => {
+  const [manageTeam, setManageTeam] = useState<Team | null>(null);
+  const [newMemberEmail, setNewMemberEmail] = useState("");
+  const [availableParticipants, setAvailableParticipants] = useState<{name: string, email: string}[]>([]);
+
+  const fetchData = async () => {
     try {
+      // 1. Fetch Teams
       const snapshot = await getDocs(collection(db, "teams_2026"));
       let fetchedTeams: Team[] = [];
       snapshot.forEach((doc) => {
         fetchedTeams.push({ id: doc.id, ...doc.data() } as Team);
       });
       setTeams(fetchedTeams);
+
+      // 2. Fetch Participants (Townscript & Firebase)
+      const usersSnapshot = await getDocs(collection(db, "users_2026"));
+      let firebaseUsers: any[] = [];
+      usersSnapshot.forEach((doc) => firebaseUsers.push(doc.data()));
+
+      const tsRes = await fetch("/api/fetch-townscript");
+      const tsData = await tsRes.json();
+      
+      let tsUsers: any[] = [];
+      if (typeof tsData.data === "string") tsUsers = JSON.parse(tsData.data);
+      else if (Array.isArray(tsData.data)) tsUsers = tsData.data;
+      else if (Array.isArray(tsData)) tsUsers = tsData;
+
+      const participantsList = tsUsers.map((tsUser: any) => {
+        const fbMatch = firebaseUsers.find((fb: any) => fb.email === tsUser.userEmailId);
+        return {
+          name: fbMatch ? `${fbMatch.firstname} ${fbMatch.lastname || ""}`.trim() : tsUser.userName,
+          email: tsUser.userEmailId
+        };
+      });
+
+      // Filter out duplicates (if same email bought multiple tickets)
+      const uniqueParticipants = Array.from(new Map(participantsList.map((item: any) => [item.email, item])).values());
+      setAvailableParticipants(uniqueParticipants as {name: string, email: string}[]);
+
     } catch (error) {
-      console.error("Error fetching teams:", error);
+      console.error("Error fetching data:", error);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchTeams();
+    fetchData();
   }, []);
 
   const handleCreateTeam = async (e: React.FormEvent) => {
@@ -74,6 +105,42 @@ export default function TeamsPage() {
       setTeams(teams.filter(t => t.id !== teamId));
     } catch (error) {
       console.error("Error deleting team:", error);
+    }
+  };
+
+  const handleAddMember = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!manageTeam || !newMemberEmail.trim()) return;
+
+    try {
+      const updatedParticipantIds = [...(manageTeam.participantIds || []), newMemberEmail.trim().toLowerCase()];
+      await updateDoc(doc(db, "teams_2026", manageTeam.id), {
+        participantIds: updatedParticipantIds
+      });
+      
+      const updatedTeam = { ...manageTeam, participantIds: updatedParticipantIds };
+      setManageTeam(updatedTeam);
+      setTeams(teams.map(t => t.id === manageTeam.id ? updatedTeam : t));
+      setNewMemberEmail("");
+    } catch (error) {
+      console.error("Error adding member:", error);
+    }
+  };
+
+  const handleRemoveMember = async (emailToRemove: string) => {
+    if (!manageTeam) return;
+
+    try {
+      const updatedParticipantIds = (manageTeam.participantIds || []).filter(email => email !== emailToRemove);
+      await updateDoc(doc(db, "teams_2026", manageTeam.id), {
+        participantIds: updatedParticipantIds
+      });
+      
+      const updatedTeam = { ...manageTeam, participantIds: updatedParticipantIds };
+      setManageTeam(updatedTeam);
+      setTeams(teams.map(t => t.id === manageTeam.id ? updatedTeam : t));
+    } catch (error) {
+      console.error("Error removing member:", error);
     }
   };
 
@@ -136,7 +203,7 @@ export default function TeamsPage() {
                     
                     <div className="pt-4 border-t border-zinc-800 mt-4 flex items-center justify-between">
                        <p className="text-sm text-zinc-400"><span className="text-white font-medium">{team.participantIds?.length || 0}</span> Participants</p>
-                       <button className="text-[#00b0f0] text-sm hover:underline font-medium">Manage Members</button>
+                       <button onClick={() => setManageTeam(team)} className="text-[#00b0f0] text-sm hover:underline font-medium">Manage Members</button>
                     </div>
                   </div>
                 </div>
@@ -183,13 +250,16 @@ export default function TeamsPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-zinc-300 mb-1">Chosen Sector</label>
-                <input 
-                  type="text" 
+                <select 
                   value={sector}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSector(e.target.value)}
-                  className="w-full rounded-lg border border-zinc-800 bg-zinc-900 py-2.5 px-3 text-white placeholder-zinc-500 focus:ring-2 focus:ring-[#00b0f0] focus:border-transparent outline-none" 
-                  placeholder="e.g. EdTech, FinTech"
-                />
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSector(e.target.value)}
+                  className="w-full rounded-lg border border-zinc-800 bg-zinc-900 py-2.5 px-3 text-white focus:ring-2 focus:ring-[#00b0f0] focus:border-transparent outline-none appearance-none"
+                >
+                  <option value="" disabled>Select a sector...</option>
+                  <option value="Tech">Tech</option>
+                  <option value="Commerce">Commerce</option>
+                  <option value="Sustainability">Sustainability</option>
+                </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-zinc-300 mb-1">Idea List</label>
@@ -211,6 +281,70 @@ export default function TeamsPage() {
                  </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Manage Members Modal */}
+      {manageTeam && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <div className="bg-zinc-950 border border-zinc-800 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col max-h-[80vh]">
+            <div className="flex justify-between items-center p-6 border-b border-zinc-800">
+              <div>
+                <h2 className="text-xl font-bold text-white">Manage Members</h2>
+                <p className="text-sm text-zinc-400 mt-1">Team: {manageTeam.teamName}</p>
+              </div>
+              <button onClick={() => { setManageTeam(null); setNewMemberEmail(""); }} className="text-zinc-400 hover:text-white transition-colors">
+                {/* @ts-ignore */}
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+            
+            <div className="p-6 overflow-y-auto">
+              <form onSubmit={handleAddMember} className="flex gap-2 mb-6">
+                <div className="relative flex-1">
+                  <select
+                    required
+                    value={newMemberEmail}
+                    onChange={(e) => setNewMemberEmail(e.target.value)}
+                    className="w-full rounded-lg border border-zinc-800 bg-zinc-900 py-2.5 pl-3 pr-3 text-white focus:ring-2 focus:ring-[#00b0f0] focus:border-transparent outline-none text-sm appearance-none"
+                  >
+                    <option value="" disabled>Select a participant...</option>
+                    {availableParticipants
+                      .filter(p => !(manageTeam.participantIds || []).includes(p.email)) // Hide already added
+                      .sort((a, b) => a.name.localeCompare(b.name)) // Sort alphabetically
+                      .map((p) => (
+                        <option key={p.email} value={p.email}>
+                          {p.name} ({p.email})
+                        </option>
+                      ))}
+                  </select>
+                </div>
+                <button type="submit" className="bg-[#00b0f0] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#009ad4] transition-colors whitespace-nowrap">
+                  Add
+                </button>
+              </form>
+
+              <div className="space-y-2">
+                <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3">Current Members ({(manageTeam.participantIds || []).length})</h3>
+                
+                {(manageTeam.participantIds || []).length === 0 ? (
+                  <p className="text-sm text-zinc-500 text-center py-4 border border-dashed border-zinc-800 rounded-lg">No members added yet.</p>
+                ) : (
+                  <ul className="space-y-2">
+                    {(manageTeam.participantIds || []).map((email) => (
+                      <li key={email} className="flex items-center justify-between bg-zinc-900 border border-zinc-800 rounded-lg p-3">
+                        <span className="text-sm text-zinc-300 truncate pr-4">{email}</span>
+                        <button onClick={() => handleRemoveMember(email)} className="text-zinc-500 hover:text-red-400 transition-colors p-1">
+                          {/* @ts-ignore */}
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       )}

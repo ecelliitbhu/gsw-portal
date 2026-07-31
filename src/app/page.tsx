@@ -26,6 +26,8 @@ export default function ParticipantsPage() {
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [kitFilter, setKitFilter] = useState("all");
+  const [tshirtFilter, setTshirtFilter] = useState("all");
 
   useEffect(() => {
     const fetchData = async () => {
@@ -123,13 +125,29 @@ export default function ParticipantsPage() {
 
   const filteredParticipants = participants.filter((p) => {
     const query = search.toLowerCase();
-    return (
+    
+    // Check search query
+    const matchesSearch = 
       p.firstname.toLowerCase().includes(query) ||
       p.lastname.toLowerCase().includes(query) ||
       p.email.toLowerCase().includes(query) ||
       p.townscriptTxn?.toLowerCase().includes(query) ||
-      p.rollNo?.toLowerCase().includes(query)
-    );
+      p.rollNo?.toLowerCase().includes(query) ||
+      p.college?.toLowerCase().includes(query);
+
+    // Check Kit filter
+    const matchesKit = 
+      kitFilter === "all" ? true :
+      kitFilter === "given" ? p.kitGiven === true :
+      p.kitGiven === false;
+
+    // Check T-Shirt filter
+    const matchesTshirt = 
+      tshirtFilter === "all" ? true :
+      tshirtFilter === "given" ? p.tshirtGiven === true :
+      p.tshirtGiven === false;
+
+    return matchesSearch && matchesKit && matchesTshirt;
   });
 
   return (
@@ -144,18 +162,42 @@ export default function ParticipantsPage() {
           </div>
         </div>
 
-        {/* Search Bar */}
-        <div className="relative max-w-md">
-          <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-            <Search className="h-5 w-5 text-zinc-500" aria-hidden="true" />
+        {/* Search and Filters */}
+        <div className="flex flex-col sm:flex-row gap-4 max-w-4xl">
+          <div className="relative flex-1">
+            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+              <Search className="h-5 w-5 text-zinc-500" aria-hidden="true" />
+            </div>
+            <input
+              type="text"
+              className="block w-full rounded-lg border-0 py-2.5 pl-10 pr-3 bg-zinc-900 text-white placeholder-zinc-500 focus:ring-2 focus:ring-[#00b0f0] sm:text-sm shadow-sm"
+              placeholder="Search by name, email, roll no, college or txn id..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
           </div>
-          <input
-            type="text"
-            className="block w-full rounded-lg border-0 py-2.5 pl-10 pr-3 bg-zinc-900 text-white placeholder-zinc-500 focus:ring-2 focus:ring-[#00b0f0] sm:text-sm shadow-sm"
-            placeholder="Search by name, email, roll no, or txn id..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+          
+          <div className="flex gap-4">
+            <select
+              value={kitFilter}
+              onChange={(e) => setKitFilter(e.target.value)}
+              className="rounded-lg border-0 py-2.5 pl-3 pr-10 bg-zinc-900 text-white focus:ring-2 focus:ring-[#00b0f0] sm:text-sm shadow-sm"
+            >
+              <option value="all">Kit: All</option>
+              <option value="given">Kit: Given</option>
+              <option value="pending">Kit: Pending</option>
+            </select>
+
+            <select
+              value={tshirtFilter}
+              onChange={(e) => setTshirtFilter(e.target.value)}
+              className="rounded-lg border-0 py-2.5 pl-3 pr-10 bg-zinc-900 text-white focus:ring-2 focus:ring-[#00b0f0] sm:text-sm shadow-sm"
+            >
+              <option value="all">T-Shirt: All</option>
+              <option value="given">T-Shirt: Given</option>
+              <option value="pending">T-Shirt: Pending</option>
+            </select>
+          </div>
         </div>
 
         {/* Table */}
