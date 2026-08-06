@@ -18,6 +18,7 @@ interface Participant {
   kitGiven: boolean;
   tshirtGiven: boolean;
   townscriptTxn?: string;
+  bookingId?: string;
   rollNo?: string;
   college?: string;
 }
@@ -90,6 +91,7 @@ export default function ParticipantsPage() {
             kitGiven: fbMatch ? fbMatch.kitGiven : false,
             tshirtGiven: fbMatch ? fbMatch.tshirtGiven : false,
             townscriptTxn: tsUser.uniqueOrderId,
+            bookingId: tsUser.registrationId ? String(tsUser.registrationId) : "",
             rollNo,
             college
           };
@@ -131,7 +133,9 @@ export default function ParticipantsPage() {
       p.firstname.toLowerCase().includes(query) ||
       p.lastname.toLowerCase().includes(query) ||
       p.email.toLowerCase().includes(query) ||
+      p.phone?.toLowerCase().includes(query) ||
       p.townscriptTxn?.toLowerCase().includes(query) ||
+      p.bookingId?.toLowerCase().includes(query) ||
       p.rollNo?.toLowerCase().includes(query) ||
       p.college?.toLowerCase().includes(query);
 
@@ -171,7 +175,7 @@ export default function ParticipantsPage() {
             <input
               type="text"
               className="block w-full rounded-lg border-0 py-2.5 pl-10 pr-3 bg-zinc-900 text-white placeholder-zinc-500 focus:ring-2 focus:ring-[#00b0f0] sm:text-sm shadow-sm"
-              placeholder="Search by name, email, roll no, college or txn id..."
+              placeholder="Search by name, email, phone, roll no, college, txn or booking id..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -211,17 +215,22 @@ export default function ParticipantsPage() {
               <table className="min-w-full divide-y divide-zinc-800">
                 <thead className="bg-zinc-900/80">
                   <tr>
+                    <th className="px-6 py-4 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">#</th>
                     <th className="px-6 py-4 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">Participant</th>
                     <th className="px-6 py-4 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">Contact</th>
-                    <th className="px-6 py-4 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">Txn / Details</th>
+                    <th className="px-6 py-4 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">Txn ID / Booking ID</th>
+                     <th className="px-6 py-4 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">Roll No / College</th>
                     <th className="px-6 py-4 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">Size</th>
                     <th className="px-6 py-4 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">Kit Given</th>
                     <th className="px-6 py-4 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">T-Shirt Given</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-800 bg-transparent">
-                  {filteredParticipants.map((p) => (
+                  {filteredParticipants.map((p , index) => (
                     <tr key={p.id} className="hover:bg-zinc-800/50 transition-colors">
+                      <td className="whitespace-nowrap px-6 py-4 text-sm text-zinc-400">
+                        {index + 1}
+                      </td>
                       <td className="whitespace-nowrap px-6 py-4">
                         <div className="flex items-center">
                           <div className="h-10 w-10 flex-shrink-0 rounded-full bg-zinc-800 flex items-center justify-center border border-zinc-700">
@@ -238,9 +247,12 @@ export default function ParticipantsPage() {
                         <div className="text-xs text-zinc-500">{p.location}</div>
                       </td>
                       <td className="whitespace-nowrap px-6 py-4">
-                        <div className="text-sm font-mono text-emerald-400">{p.townscriptTxn}</div>
-                        <div className="text-xs text-zinc-400">
-                          {p.rollNo ? `Roll: ${p.rollNo}` : (p.college ? p.college : "N/A")}
+                        <div className="text-sm font-mono text-emerald-400">Txn: {p.townscriptTxn}</div>
+                        <div className="text-xs text-zinc-400 font-mono">Booking: {p.bookingId || "N/A"}</div>
+                      </td>
+                      <td className="whitespace-nowrap px-6 py-4">
+                        <div className="text-sm text-zinc-300">
+                          {p.rollNo ? p.rollNo : (p.college ? p.college : "N/A")}
                         </div>
                       </td>
                       <td className="whitespace-nowrap px-6 py-4">
@@ -272,7 +284,7 @@ export default function ParticipantsPage() {
                   ))}
                   {filteredParticipants.length === 0 && !loading && (
                     <tr>
-                      <td colSpan={6} className="px-6 py-10 text-center text-zinc-500">
+                      <td colSpan={8} className="px-6 py-10 text-center text-zinc-500">
                         No participants found matching your search.
                       </td>
                     </tr>
