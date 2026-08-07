@@ -65,13 +65,30 @@ export default function ParticipantsPage() {
         console.log("Parsed Townscript Users Array:", tsUsers);
 
         // Merge data using Townscript as the source of truth
+        //first we will normalize names for comparison
+        const normalizeName = (name: string) =>
+          (name || "").trim().toLowerCase().replace(/\s+/g, " ");
+
         const merged: Participant[] = tsUsers.map((tsUser: any) => {
-          // Find matching firebase record by email
-          const fbMatch = firebaseUsers.find((fb: any) => fb.email === tsUser.userEmailId);
+          // Find matching firebase record by email first
+          let fbMatch = firebaseUsers.find((fb: any) => fb.email === tsUser.userEmailId);
+
+          // Fallback: match by name , but only if exactly one Firebase user has that name
+          if (!fbMatch) {
+            const tsFullName = normalizeName(tsUser.userName);
+            const nameMatches = firebaseUsers.filter(
+              (fb: any) => normalizeName(`${fb.firstname} ${fb.lastname || ""}`) === tsFullName
+            );
+            if (nameMatches.length === 1) {
+              fbMatch = nameMatches[0];
+            }
+            // If 0 or 2+ matches, fbMatch stays undefined — no guessing.
+          }
+
           let rollNo = "";
           let college = "";
           
-          if (Array.isArray(tsUser.answerList)) {
+          if (Array.isArray(tsUser.answerListzzzzzzz)) {
              const rollAnswer = tsUser.answerList.find((a: any) => a.question && a.question.toLowerCase().includes("roll no"));
              const collegeAnswer = tsUser.answerList.find((a: any) => a.question && a.question.toLowerCase().includes("college"));
              
