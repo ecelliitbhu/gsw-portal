@@ -73,22 +73,37 @@ export default function ParticipantsPage() {
           // Find matching firebase record by email first
           let fbMatch = firebaseUsers.find((fb: any) => fb.email === tsUser.userEmailId);
 
-          // Fallback: match by name , but only if exactly one Firebase user has that name
+          // Fallback 1: match by full name (exact), but only if exactly one Firebase user has that name
           if (!fbMatch) {
             const tsFullName = normalizeName(tsUser.userName);
             const nameMatches = firebaseUsers.filter(
-              (fb: any) => normalizeName(`${fb.firstname} ${fb.lastname || ""}`) === tsFullName
+              (fb: any) => normalizeName(`${fb.firstname} ${fb.lastname || ""}`.trim()) === tsFullName
             );
             if (nameMatches.length === 1) {
               fbMatch = nameMatches[0];
+            } else {
+              // Debug: log unmatched users so we can see the exact name discrepancy
+              console.warn(`[Name Match Failed] TS name: "${tsUser.userName}" | TS email: "${tsUser.userEmailId}" | Firebase candidates:`, 
+                firebaseUsers.map((fb: any) => `"${fb.firstname} ${fb.lastname || ""}"`));
             }
-            // If 0 or 2+ matches, fbMatch stays undefined — no guessing.
+          }
+
+          // Fallback 2: match by first name only, if unique across all Firebase users
+          if (!fbMatch) {
+            const tsFirstName = normalizeName(tsUser.userName.split(" ")[0]);
+            const firstNameMatches = firebaseUsers.filter(
+              (fb: any) => normalizeName(fb.firstname) === tsFirstName
+            );
+            if (firstNameMatches.length === 1) {
+              fbMatch = firstNameMatches[0];
+              console.log(`[First-Name Match] Matched "${tsUser.userName}" → Firebase: "${fbMatch.firstname} ${fbMatch.lastname || ""}"`);
+            }
           }
 
           let rollNo = "";
           let college = "";
           
-          if (Array.isArray(tsUser.answerListzzzzzzz)) {
+          if (Array.isArray(tsUser.answerList)) {
              const rollAnswer = tsUser.answerList.find((a: any) => a.question && a.question.toLowerCase().includes("roll no"));
              const collegeAnswer = tsUser.answerList.find((a: any) => a.question && a.question.toLowerCase().includes("college"));
              
