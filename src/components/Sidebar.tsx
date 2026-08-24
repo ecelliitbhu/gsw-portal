@@ -2,28 +2,38 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Users, UsersRound, Presentation, LogOut } from "lucide-react";
-import { signOut } from "next-auth/react";
+import { Users, UsersRound, Presentation, LogOut, CalendarDays } from "lucide-react";
+import { signOut, useSession } from "next-auth/react";
 
-const navItems = [
+const adminNavItems = [
   { name: "Participants", href: "/", icon: Users },
   { name: "Teams", href: "/teams", icon: UsersRound },
   { name: "Mentors", href: "/mentors", icon: Presentation },
+  { name: "Book Mentor", href: "/booking", icon: CalendarDays },
+];
+
+const teamLeaderNavItems = [
+  { name: "Book Mentor", href: "/booking", icon: CalendarDays },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { data: session } = useSession();
+  
+  // @ts-ignore
+  const role = session?.user?.role || "admin"; 
+  const navItems = role === "team_leader" ? teamLeaderNavItems : adminNavItems;
 
   return (
     <div className="flex h-full w-64 flex-col border-r border-zinc-800 bg-zinc-950">
       <div className="flex h-16 items-center border-b border-zinc-800 px-6">
-        <h1 className="text-xl font-bold text-white">Events Portal</h1>
+        <h1 className="text-xl font-bold text-white">GSW Portal</h1>
       </div>
       
       <div className="flex-1 overflow-y-auto py-4">
         <nav className="space-y-1 px-3">
           {navItems.map((item) => {
-            const isActive = pathname === item.href;
+            const isActive = pathname.startsWith(item.href) && (item.href !== "/" || pathname === "/");
             return (
               <Link
                 key={item.name}
