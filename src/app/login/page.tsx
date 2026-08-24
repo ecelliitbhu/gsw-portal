@@ -21,13 +21,13 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-black">
-      <div className="w-full max-w-md space-y-8 rounded-2xl bg-zinc-950 p-10 border border-zinc-800 shadow-xl">
-        <div className="text-center">
-          <h2 className="mt-6 text-3xl font-extrabold text-white">GSW Events Portal</h2>
-          <p className="mt-2 text-sm text-zinc-400">
-            Sign in with your authorized events associate account.
-          </p>
-        </div>
+        <div className="w-full max-w-md space-y-8 p-10 bg-zinc-900/50 rounded-2xl border border-zinc-800 shadow-2xl backdrop-blur-xl">
+          <div className="text-center">
+            <h2 className="mt-6 text-3xl font-extrabold text-white">GSW Portal</h2>
+            <p className="mt-2 text-sm text-zinc-400">
+              Sign in with your authorized account.
+            </p>
+          </div>
         <div className="mt-8 space-y-6">
           <button
             onClick={() => signIn("google", { callbackUrl: "/" })}

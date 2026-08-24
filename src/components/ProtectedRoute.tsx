@@ -16,6 +16,16 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
     }
   }, [status, router]);
 
+  // @ts-ignore
+  const role = useSession().data?.user?.role;
+  const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
+
+  useEffect(() => {
+    if (role === "team_leader" && pathname === "/") {
+      router.push("/booking");
+    }
+  }, [role, pathname, router]);
+
   if (status === "loading") {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-black">

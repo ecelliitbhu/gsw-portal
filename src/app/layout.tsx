@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "GSW Events Portal",
+  title: "GSW Portal",
   description: "Internal portal for GSW Events Team",
 };
 
