@@ -2,7 +2,7 @@
 
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { useEffect, useState } from "react";
-import { collection, getDocs, doc, updateDoc, setDoc } from "firebase/firestore";
+import { collection, getDocs, doc, updateDoc, setDoc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebaseStore";
 import { Search, Loader2 } from "lucide-react";
 
@@ -30,23 +30,13 @@ export default function ParticipantsPage() {
   const [tshirtFilter, setTshirtFilter] = useState("all");
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        // Fetch from Firebase
-        const usersSnapshot = await getDocs(collection(db, "users_2026"));
-        let firebaseUsers: any[] = [];
-        usersSnapshot.forEach((doc) => {
-          const data = doc.data();
-          if (data.formFilled) {
-            firebaseUsers.push({ id: doc.id, ...data });
-          }
-        });
+    let unsubscribe: () => void;
 
-        // Fetch from Townscript
+    const fetchDataAndListen = async () => {
+      try {
+        // 1. Fetch from Townscript first (static data)
         const tsRes = await fetch("/api/fetch-townscript");
         const tsData = await tsRes.json();
-        
-        console.log("Raw Townscript API Response:", tsData);
         
         let tsUsers: any[] = [];
         try {
@@ -61,53 +51,77 @@ export default function ParticipantsPage() {
           console.error("Failed to parse tsData.data", e);
         }
 
-        console.log("Parsed Townscript Users Array:", tsUsers);
+        // 2. Set up real-time listener for Firebase
+        unsubscribe = onSnapshot(collection(db, "users_2026"), (snapshot) => {
+          let firebaseUsers: any[] = [];
+          snapshot.forEach((doc) => {
+            const data = doc.data();
+            if (data.formFilled) {
+              firebaseUsers.push({ id: doc.id, ...data });
+            }
+          });
 
-        // Merge data using Townscript as the source of truth
-        const merged: Participant[] = tsUsers.map((tsUser: any) => {
-          // Find matching firebase record by email
-          const fbMatch = firebaseUsers.find((fb: any) => fb.email === tsUser.userEmailId);
-          let rollNo = "";
-          let college = "";
-          
-          if (Array.isArray(tsUser.answerList)) {
-             const rollAnswer = tsUser.answerList.find((a: any) => a.question && a.question.toLowerCase().includes("roll no"));
-             const collegeAnswer = tsUser.answerList.find((a: any) => a.question && a.question.toLowerCase().includes("college"));
-             
-             rollNo = rollAnswer ? rollAnswer.answer : "";
-             college = collegeAnswer ? collegeAnswer.answer : "";
-          }
+          // Merge data using Townscript as the source of truth
+          const merged: Participant[] = tsUsers.map((tsUser: any) => {
+            const fbMatch = firebaseUsers.find((fb: any) => fb.email === tsUser.userEmailId);
+            let rollNo = "";
+            let college = "";
+            
+            if (Array.isArray(tsUser.answerList)) {
+               const rollAnswer = tsUser.answerList.find((a: any) => a.question && a.question.toLowerCase().includes("roll no"));
+               const collegeAnswer = tsUser.answerList.find((a: any) => a.question && a.question.toLowerCase().includes("college"));
+               
+               rollNo = rollAnswer ? rollAnswer.answer : "";
+               college = collegeAnswer ? collegeAnswer.answer : "";
+            }
 
-          return {
-            id: tsUser.uniqueOrderId, // ALWAYS unique per ticket
-            firebaseId: fbMatch ? fbMatch.id : tsUser.uniqueOrderId, // Where to save in Firebase
-            firstname: fbMatch ? fbMatch.firstname : tsUser.userName,
-            lastname: fbMatch ? fbMatch.lastname : "",
-            email: tsUser.userEmailId,
-            phone: fbMatch ? fbMatch.phone : "N/A",
-            location: fbMatch ? fbMatch.location : "N/A",
-            size: fbMatch ? fbMatch.size : "N/A",
-            kitGiven: fbMatch ? fbMatch.kitGiven : false,
-            tshirtGiven: fbMatch ? fbMatch.tshirtGiven : false,
-            townscriptTxn: tsUser.uniqueOrderId,
-            rollNo,
-            college
-          };
+            return {
+              id: tsUser.uniqueOrderId,
+              firebaseId: fbMatch ? fbMatch.id : tsUser.uniqueOrderId,
+              firstname: fbMatch ? fbMatch.firstname : tsUser.userName,
+              lastname: fbMatch ? fbMatch.lastname : "",
+              email: tsUser.userEmailId,
+              phone: fbMatch ? fbMatch.phone : "N/A",
+              location: fbMatch ? fbMatch.location : "N/A",
+              size: fbMatch ? fbMatch.size : "N/A",
+              kitGiven: fbMatch ? fbMatch.kitGiven : false,
+              tshirtGiven: fbMatch ? fbMatch.tshirtGiven : false,
+              townscriptTxn: tsUser.uniqueOrderId,
+              rollNo,
+              college
+            };
+          });
+
+          setParticipants(merged);
+          setLoading(false);
+        }, (error) => {
+          console.error("Error listening to Firebase:", error);
+          setLoading(false);
         });
 
-        // We no longer need to filter because we are ONLY iterating over people who have paid (Townscript attendees)
-        setParticipants(merged);
       } catch (error) {
-        console.error("Error fetching data:", error);
-      } finally {
+        console.error("Error fetching Townscript data:", error);
         setLoading(false);
       }
     };
 
-    fetchData();
+    fetchDataAndListen();
+
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
   }, []);
 
   const handleCheckbox = async (userId: string, firebaseId: string, field: "kitGiven" | "tshirtGiven", value: boolean) => {
+    // Add safeguard for unchecking
+    if (!value) {
+      const fieldName = field === "kitGiven" ? "Kit" : "T-Shirt";
+      const confirmUncheck = window.confirm(`Are you sure you want to UNCHECK ${fieldName} for this participant?`);
+      if (!confirmUncheck) return; // User cancelled the uncheck
+    }
+
     // Optimistic UI update using unique React key
     setParticipants(prev => prev.map(p => p.id === userId ? { ...p, [field]: value } : p));
     
